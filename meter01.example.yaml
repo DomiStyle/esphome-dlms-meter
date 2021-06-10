@@ -1,0 +1,136 @@
+esphome:
+  name: meter01
+  platform: ESP32
+  board: esp32-poe
+  includes:
+    - ./espdm
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+  power_pin: GPIO12
+  domain: .example.org
+
+# Enable logging
+logger:
+  level: INFO
+#  tx_buffer_size: 2048 # Only needed when logging large packets
+
+# Enable Home Assistant API if not using MQTT
+#api:
+#  password: "1234"
+#  reboot_timeout: 0s
+
+ota:
+  password: "1234"
+
+#web_server:
+#  port: 80
+
+uart:
+  tx_pin: GPIO4
+  rx_pin: GPIO36
+  baud_rate: 2400
+  rx_buffer_size: 1024 # Needed to receive the large packets send by the smart meter
+  invert: false
+  id: mbus
+
+sensor:
+  - platform: template
+    id: meter01_voltage_l1
+    name: meter01_voltage_l1
+    unit_of_measurement: V
+    accuracy_decimals: 1
+  - platform: template
+    id: meter01_voltage_l2
+    name: meter01_voltage_l2
+    unit_of_measurement: V
+    accuracy_decimals: 1
+  - platform: template
+    id: meter01_voltage_l3
+    name: meter01_voltage_l3
+    unit_of_measurement: V
+    accuracy_decimals: 1
+
+  - platform: template
+    id: meter01_current_l1
+    name: meter01_current_l1
+    unit_of_measurement: A
+    accuracy_decimals: 2
+  - platform: template
+    id: meter01_current_l2
+    name: meter01_current_l2
+    unit_of_measurement: A
+    accuracy_decimals: 2
+  - platform: template
+    id: meter01_current_l3
+    name: meter01_current_l3
+    unit_of_measurement: A
+    accuracy_decimals: 2
+
+  - platform: template
+    id: meter01_active_power_plus
+    name: meter01_active_power_plus
+    unit_of_measurement: W
+    accuracy_decimals: 0
+  - platform: template
+    id: meter01_active_power_minus
+    name: meter01_active_power_minus
+    unit_of_measurement: W
+    accuracy_decimals: 0
+
+  - platform: template
+    id: meter01_active_energy_plus
+    name: meter01_active_energy_plus
+    unit_of_measurement: kWh
+    accuracy_decimals: 0
+  - platform: template
+    id: meter01_active_energy_minus
+    name: meter01_active_energy_minus
+    unit_of_measurement: kWh
+    accuracy_decimals: 0
+
+  - platform: template
+    id: meter01_reactive_energy_plus
+    name: meter01_reactive_energy_plus
+    unit_of_measurement: kWh
+    accuracy_decimals: 0
+  - platform: template
+    id: meter01_reactive_energy_minus
+    name: meter01_reactive_energy_minus
+    unit_of_measurement: kWh
+    accuracy_decimals: 0
+
+text_sensor:
+  - platform: template
+    id: meter01_timestamp
+    name: meter01_timestamp
+
+mqtt:
+  broker: 192.168.1.1
+  id: mqtt_broker
+
+custom_component:
+  - lambda: |-
+      auto dlms_meter = new DlmsMeter(id(mbus));
+
+      byte key[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+      dlms_meter->set_key(key, 16); # Pass your decryption key and key length here
+
+      dlms_meter->set_voltage_sensors(id(meter01_voltage_l1), id(meter01_voltage_l2), id(meter01_voltage_l3)); # Set sensors to use for voltage (optional)
+
+      dlms_meter->set_current_sensors(id(meter01_current_l1), id(meter01_current_l2), id(meter01_current_l3)); # Set sensors to use for current (optional)
+
+      dlms_meter->set_active_power_sensors(id(meter01_active_power_plus), id(meter01_active_power_minus)); # Set sensors to use for active power (optional)
+
+      dlms_meter->set_active_energy_sensors(id(meter01_active_energy_plus), id(meter01_active_energy_minus)); # Set sensors to use for active energy (optional)
+      dlms_meter->set_reactive_energy_sensors(id(meter01_reactive_energy_plus), id(meter01_reactive_energy_minus)); # Set sensors to use for reactive energy (optional)
+
+      dlms_meter->set_timestamp_sensor(id(meter01_timestamp)); # Set sensor to use for timestamp (optional)
+
+      dlms_meter->enable_mqtt(id(mqtt_broker), "meter01/data"); # Enable grouped together MQTT report, useful to get exact time with each data for storing results in InfluxDB
+
+      return {dlms_meter};

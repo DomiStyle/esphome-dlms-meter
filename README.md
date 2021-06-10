@@ -1,6 +1,6 @@
 # Overview
 
-A custom component for ESPHome for reading meter data sent by the Kaifa MA309M.
+A custom component for ESPHome for reading meter data sent by the Kaifa MA309M via M-Bus.
 
 # Features
 
@@ -15,10 +15,27 @@ A custom component for ESPHome for reading meter data sent by the Kaifa MA309M.
 
 * [Tinetz](https://www.tinetz.at/)
 
+# Exposed sensors
+
+* Voltage L1
+* Voltage L2
+* Voltage L3
+* Amperage L1
+* Amperage L2
+* Amperage L3
+* Active Power Plus
+* Active Power Minus
+* Active Energy Plus
+* Active Energy Minus
+* Reactive Energy Plus
+* Reactive Energy Minus
+
 # Requirements
 
 * ESP32 ([supported by ESPHome](https://esphome.io/#devices))
 * RJ11 cable
+* M-Bus to UART board (e.g. https://www.mikroe.com/m-bus-slave-click)
+* RJ11 breakout board **or** soldering iron with some wires
 * ESPHome 1.15.0 or newer
 
 # Notes
@@ -38,4 +55,14 @@ This software installation guide assumes some familiarity with ESPHome.
 
 # Hardware installation
 
-TODO
+* Cut one end of the RJ11 cable and connect wires to pin 3 & 4 **OR** Plug RJ11 into a breakout board
+* Connect everything according to this table:
+
+| **ESP32** | **M-Bus Board**           | **RJ11** | **Notes** |
+| --------- | ------------- | ---------------- | ----------- |
+| 3.3V        | 3V3 | - | 3.3V power |
+| GND      | GND | - | Ground |
+| GPIO4       | RX    | - | Connect RX from the M-Bus board to TX from the ESP |
+| GPIO36    | TX    | - | Connect TX from the M-Bus board to RX from the ESP |
+| -    | MBUS1    | 3 | Connect M-Bus board to smart meter, polarity does not matter |
+| -    | MBUS2    | 4 | Connect M-Bus board to smart meter, polarity does not matter |

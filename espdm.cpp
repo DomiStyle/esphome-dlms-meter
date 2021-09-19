@@ -38,6 +38,7 @@ void DlmsMeter::loop()
         }
 
         ESP_LOGD(TAG, "Handling packet");
+        log_packet(receiveBuffer, receiveBufferIndex);
 
         // Decrypting
 
@@ -442,12 +443,12 @@ void DlmsMeter::log_packet(byte array[], size_t length)
     {
         byte nib1 = (array[i] >> 4) & 0x0F;
         byte nib2 = (array[i] >> 0) & 0x0F;
-        buffer[i*3+4] = nib1  < 0xA ? '0' + nib1  : 'A' + nib1  - 0xA;
-        buffer[i*3+5] = nib2  < 0xA ? '0' + nib2  : 'A' + nib2  - 0xA;
-        buffer[i*3+6] = ' ';
+        buffer[i*3] = nib1  < 0xA ? '0' + nib1  : 'A' + nib1  - 0xA;
+        buffer[i*3+1] = nib2  < 0xA ? '0' + nib2  : 'A' + nib2  - 0xA;
+        buffer[i*3+2] = ' ';
     }
 
-    buffer[(length*3)+4-1] = '\0';
+    buffer[(length*3)-1] = '\0';
 
     ESP_LOGV(TAG, buffer);
 }

@@ -44,65 +44,89 @@ sensor:
     name: meter01_voltage_l1
     unit_of_measurement: V
     accuracy_decimals: 1
+    device_class: "voltage"
+    state_class: "measurement"
   - platform: template
     id: meter01_voltage_l2
     name: meter01_voltage_l2
     unit_of_measurement: V
     accuracy_decimals: 1
+    device_class: "voltage"
+    state_class: "measurement"
   - platform: template
     id: meter01_voltage_l3
     name: meter01_voltage_l3
     unit_of_measurement: V
     accuracy_decimals: 1
+    device_class: "voltage"
+    state_class: "measurement"
 
   - platform: template
     id: meter01_current_l1
     name: meter01_current_l1
     unit_of_measurement: A
     accuracy_decimals: 2
+    device_class: "current"
+    state_class: "measurement"
   - platform: template
     id: meter01_current_l2
     name: meter01_current_l2
     unit_of_measurement: A
     accuracy_decimals: 2
+    device_class: "current"
+    state_class: "measurement"
   - platform: template
     id: meter01_current_l3
     name: meter01_current_l3
     unit_of_measurement: A
     accuracy_decimals: 2
+    device_class: "current"
+    state_class: "measurement"
 
   - platform: template
     id: meter01_active_power_plus
     name: meter01_active_power_plus
     unit_of_measurement: W
     accuracy_decimals: 0
+    device_class: "power"
+    state_class: "measurement"
   - platform: template
     id: meter01_active_power_minus
     name: meter01_active_power_minus
     unit_of_measurement: W
     accuracy_decimals: 0
+    device_class: "power"
+    state_class: "measurement"
 
   - platform: template
     id: meter01_active_energy_plus
     name: meter01_active_energy_plus
-    unit_of_measurement: kWh
+    unit_of_measurement: Wh
     accuracy_decimals: 0
+    device_class: "energy"
+    state_class: "total_increasing"
   - platform: template
     id: meter01_active_energy_minus
     name: meter01_active_energy_minus
-    unit_of_measurement: kWh
+    unit_of_measurement: Wh
     accuracy_decimals: 0
+    device_class: "energy"
+    state_class: "total_increasing"
 
   - platform: template
     id: meter01_reactive_energy_plus
     name: meter01_reactive_energy_plus
-    unit_of_measurement: kWh
+    unit_of_measurement: Wh
     accuracy_decimals: 0
+    device_class: "energy"
+    state_class: "total_increasing"
   - platform: template
     id: meter01_reactive_energy_minus
     name: meter01_reactive_energy_minus
-    unit_of_measurement: kWh
+    unit_of_measurement: Wh
     accuracy_decimals: 0
+    device_class: "energy"
+    state_class: "total_increasing"
 
 text_sensor:
   - platform: template

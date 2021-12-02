@@ -3,7 +3,7 @@ esphome:
   platform: ESP32
   board: esp32-poe
   includes:
-    - ./espdm
+    - ./esphome-dlms-meter
 
 ethernet:
   type: LAN8720

@@ -49,12 +49,19 @@ A custom component for ESPHome for reading meter data sent by the Kaifa MA309M v
 
 This software installation guide assumes some familiarity with ESPHome.
 
-* Pull this repository into your ESPHome config files
-* Adjust the meter01.example.yaml to your needs, copy it into your ESPHome config folder as meter01.yaml
+* Clone this repository into your ESPHome config files: `git clone git@github.com:DomiStyle/esphome-dlms-meter.git`
+* Copy the meter01.example.yaml into your ESPHome config folder and adjust it to your needs
 * **Don't forget to add your decryption key in meter01.yaml**
 * Connect your ESP
 * Run `esphome meter01.yaml run` and choose your serial port (or do this via the Home Assistant UI)
 * Disconnect the ESP and continue with hardware installation
+
+Make sure your directory structure looks like this:
+
+* config
+  * meter01.yaml
+  * esphome-dlms-meter
+    * The files from this repo (espdm.h, ...)
 
 # Hardware installation
 

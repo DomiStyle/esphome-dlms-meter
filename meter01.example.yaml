@@ -35,7 +35,6 @@ uart:
   rx_pin: GPIO36
   baud_rate: 2400
   rx_buffer_size: 1024 # Needed to receive the large packets send by the smart meter
-  invert: false
   id: mbus
 
 sensor:
@@ -139,7 +138,8 @@ mqtt:
 
 custom_component:
   - lambda: |-
-      auto dlms_meter = new DlmsMeter(id(mbus));
+
+      auto dlms_meter = new esphome::espdm::DlmsMeter(id(mbus));
 
       byte key[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
       dlms_meter->set_key(key, 16); # Pass your decryption key and key length here

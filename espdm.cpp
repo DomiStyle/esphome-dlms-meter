@@ -330,7 +330,7 @@ namespace esphome
 
                 if(this->mqtt_client != NULL)
                 {
-                    this->mqtt_client->publish_json(topic, [=](JsonObject &root)
+                    this->mqtt_client->publish_json(topic, [=](JsonObject root)
                     {
                         if(this->voltage_l1 != NULL)
                         {

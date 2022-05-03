@@ -46,6 +46,7 @@ enum CodeType
     Timestamp,
     SerialNumber,
     DeviceName,
+    MeterNumber,
     VoltageL1,
     VoltageL2,
     VoltageL3,
@@ -54,6 +55,7 @@ enum CodeType
     CurrentL3,
     ActivePowerPlus,
     ActivePowerMinus,
+    PowerFactor,
     ActiveEnergyPlus,
     ActiveEnergyMinus,
     ReactiveEnergyPlus,
@@ -153,6 +155,10 @@ static const byte ESPDM_ACTIVE_POWER_PLUS[]
 static const byte ESPDM_ACTIVE_POWER_MINUS[]
 {
     0x02, 0x07
+};
+static const byte ESPDM_POWER_FACTOR[]
+{
+    0x0D, 0x07
 };
 
 /*

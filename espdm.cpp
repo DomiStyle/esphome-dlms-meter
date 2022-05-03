@@ -33,6 +33,7 @@ namespace esphome
 
             if(receiveBufferIndex > 0 && currentTime - lastRead > readTimeout)
             {
+                ESP_LOGV(TAG, "receiveBufferIndex: %d", receiveBufferIndex);
                 if(receiveBufferIndex < 256)
                 {
                     ESP_LOGE(TAG, "Received packet with invalid size");
@@ -45,11 +46,15 @@ namespace esphome
                 // Decrypting
 
                 uint16_t payloadLength;
-                memcpy(&payloadLength, &receiveBuffer[20], 2); // Copy payload length
-                payloadLength = swap_uint16(payloadLength) - 5;
+                //memcpy(&payloadLength, &receiveBuffer[20], 2); // Copy payload length
+                // TODO: TEST!!!!!
+                memcpy(&payloadLength, &receiveBuffer[18], 2); // Copy payload length
+                //payloadLength = swap_uint16(payloadLength) - 5;
+                payloadLength = 243;
 
                 if(receiveBufferIndex <= payloadLength)
                 {
+                    ESP_LOGV(TAG, "receiveBufferIndex: %d, payloadLength: %d", receiveBufferIndex, payloadLength);
                     ESP_LOGE(TAG, "Payload length is too big for received data");
                     return abort();
                 }
@@ -66,12 +71,14 @@ namespace esphome
                     return abort();
                 }
         */
-                uint16_t payloadLength1 = 227; // TODO: Read payload length 1 from data
+                //uint16_t payloadLength1 = 227; // TODO: Read payload length 1 from data
+                uint16_t payloadLength1 = 228; // TODO: Read payload length 1 from data
 
                 uint16_t payloadLength2 = payloadLength - payloadLength1;
 
                 if(payloadLength2 >= receiveBufferIndex - DLMS_HEADER2_OFFSET - DLMS_HEADER2_LENGTH)
                 {
+                    ESP_LOGV(TAG, "receiveBufferIndex: %d, payloadLength2: %d", receiveBufferIndex, payloadLength2);
                     ESP_LOGE(TAG, "Payload length 2 is too big");
                     return abort();
                 }
@@ -102,10 +109,14 @@ namespace esphome
 
                 // Decoding
 
+                ESP_LOGV(TAG, "Plaintext Packet:");
+                log_packet(plaintext, 300);
                 int currentPosition = DECODER_START_OFFSET;
 
                 do
                 {
+                    ESP_LOGV(TAG, "currentPosition: %d", currentPosition);
+                    ESP_LOGV(TAG, "OBIS header type: %d", plaintext[currentPosition + OBIS_TYPE_OFFSET]);
                     if(plaintext[currentPosition + OBIS_TYPE_OFFSET] != DataType::OctetString)
                     {
                         ESP_LOGE(TAG, "Unsupported OBIS header type");
@@ -113,8 +124,9 @@ namespace esphome
                     }
 
                     byte obisCodeLength = plaintext[currentPosition + OBIS_LENGTH_OFFSET];
+                    ESP_LOGV(TAG, "OBIS code/header length: %d", obisCodeLength);
 
-                    if(obisCodeLength != 0x06)
+                    if(obisCodeLength != 0x06 && obisCodeLength != 0x0C)
                     {
                         ESP_LOGE(TAG, "Unsupported OBIS header length");
                         return abort();
@@ -123,7 +135,21 @@ namespace esphome
                     byte obisCode[obisCodeLength];
                     memcpy(&obisCode[0], &plaintext[currentPosition + OBIS_CODE_OFFSET], obisCodeLength); // Copy OBIS code to array
 
-                    currentPosition += obisCodeLength + 2; // Advance past code, position and type
+                    bool timestampFound = false;
+                    bool meterNumberFound = false;
+                    // Do not advance Position when reading the Timestamp at DECODER_START_OFFSET
+                    if ((obisCodeLength == 0x0C) && (currentPosition  == DECODER_START_OFFSET))
+                    {
+                        timestampFound = true;
+                    } 
+                    else if ((currentPosition  != DECODER_START_OFFSET) && plaintext[currentPosition - 1] == 0xFF)
+                    {
+                        meterNumberFound = true;
+                    }
+                    else
+                    {
+                        currentPosition += obisCodeLength + 2; // Advance past code and position
+                    }
 
                     byte dataType = plaintext[currentPosition];
                     currentPosition++; // Advance past data type
@@ -131,6 +157,9 @@ namespace esphome
                     byte dataLength = 0x00;
 
                     CodeType codeType = CodeType::Unknown;
+
+                    ESP_LOGV(TAG, "obisCode (OBIS_A): %d", obisCode[OBIS_A]);
+                    ESP_LOGV(TAG, "currentPosition: %d", currentPosition);
 
                     if(obisCode[OBIS_A] == Medium::Electricity)
                     {
@@ -169,6 +198,10 @@ namespace esphome
                         {
                             codeType = CodeType::ActivePowerMinus;
                         }
+                        else if(memcmp(&obisCode[OBIS_C], ESPDM_POWER_FACTOR, 2) == 0)
+                        {
+                            codeType = CodeType::PowerFactor;
+                        }
 
                         else if(memcmp(&obisCode[OBIS_C], ESPDM_ACTIVE_ENERGY_PLUS, 2) == 0)
                         {
@@ -189,7 +222,7 @@ namespace esphome
                         }
                         else
                         {
-                            ESP_LOGW(TAG, "Unsupported OBIS code");
+                            ESP_LOGW(TAG, "Unsupported OBIS code OBIS_C: %d, OBIS_D: %d", obisCode[OBIS_C], obisCode[OBIS_D]);
                         }
                     }
                     else if(obisCode[OBIS_A] == Medium::Abstract)
@@ -208,8 +241,20 @@ namespace esphome
                         }
                         else
                         {
-                            ESP_LOGW(TAG, "Unsupported OBIS code");
+                            ESP_LOGW(TAG, "Unsupported OBIS code OBIS_C: %d, OBIS_D: %d", obisCode[OBIS_C], obisCode[OBIS_D]);
                         }
+                    }
+                    // Needed so the Timestamp at DECODER_START_OFFSET gets read correctly
+                    // as it doesn't have an obisMedium
+                    else if (timestampFound == true)
+                    {
+                        ESP_LOGV(TAG, "Found Timestamp without obisMedium");
+                        codeType = CodeType::Timestamp;
+                    }
+                    else if (meterNumberFound == true)
+                    {
+                        ESP_LOGV(TAG, "Found MeterNumber without obisMedium");
+                        codeType = CodeType::MeterNumber;
                     }
                     else
                     {
@@ -276,8 +321,14 @@ namespace esphome
                             else if(codeType == CodeType::CurrentL3 && this->current_l3 != NULL && this->current_l3->state != floatValue)
                                 this->current_l3->publish_state(floatValue);
 
+                            else if(codeType == CodeType::PowerFactor && this->power_factor != NULL && this->power_factor->state != floatValue)
+                                this->power_factor->publish_state(floatValue / 1000.0);
+
                         break;
                         case DataType::OctetString:
+                            ESP_LOGV(TAG, "Arrived on OctetString");
+                            ESP_LOGV(TAG, "currentPosition: %d, plaintext: %d", currentPosition, plaintext[currentPosition]);
+
                             dataLength = plaintext[currentPosition];
                             currentPosition++; // Advance past string length
 
@@ -307,6 +358,16 @@ namespace esphome
 
                                 this->timestamp->publish_state(timestamp);
                             }
+                            else if(codeType == CodeType::MeterNumber)
+                            {
+                                ESP_LOGV(TAG, "Constructing MeterNumber...");
+                                char meterNumber[13]; // 121110284568
+
+                                memcpy(meterNumber, &plaintext[currentPosition], dataLength);
+                                meterNumber[12] = '\0';
+
+                                this->meternumber->publish_state(meterNumber);
+                            }
 
                         break;
                         default:
@@ -317,10 +378,18 @@ namespace esphome
 
                     currentPosition += dataLength; // Skip data length
 
-                    currentPosition += 2; // Skip break after data
+                    // Don't skip the break on the first Timestamp, as there's none
+                    if(timestampFound == false)
+                    {
+                        currentPosition += 2; // Skip break after data
+                    }
 
                     if(plaintext[currentPosition] == 0x0F) // There is still additional data for this type, skip it
-                        currentPosition += 6; // Skip additional data and additional break; this will jump out of bounds on last frame
+                    {
+                        //currentPosition += 6; // Skip additional data and additional break; this will jump out of bounds on last frame
+                        // on EVN Meters the additional data (no additional Break) is only 3 Bytes + 1 Byte for the "there is data" Byte
+                        currentPosition += 4; // Skip additional data and additional break; this will jump out of bounds on last frame
+                    }
                 }
                 while (currentPosition <= payloadLength); // Loop until arrived at end
 
@@ -352,6 +421,11 @@ namespace esphome
                             root["active_power_minus"] = this->active_power_minus->state;
                         }
 
+                        if(this->power_factor != NULL)
+                        {
+                            root["power_factor"] = this->power_factor->state;
+                        }
+
                         if(this->active_energy_plus != NULL)
                         {
                             root["active_energy_plus"] = this->active_energy_plus->state;
@@ -367,6 +441,11 @@ namespace esphome
                         if(this->timestamp != NULL)
                         {
                             root["timestamp"] = this->timestamp->state;
+                        }
+
+                        if(this->meternumber != NULL)
+                        {
+                            root["meternumber"] = this->meternumber->state;
                         }
                     });
                 }
@@ -408,10 +487,12 @@ namespace esphome
             this->current_l3 = current_l3;
         }
 
-        void DlmsMeter::set_active_power_sensors(sensor::Sensor *active_power_plus, sensor::Sensor *active_power_minus)
+        void DlmsMeter::set_active_power_sensors(sensor::Sensor *active_power_plus, sensor::Sensor *active_power_minus, sensor::Sensor *power_factor)
         {
             this->active_power_plus = active_power_plus;
             this->active_power_minus = active_power_minus;
+            this->power_factor = power_factor;
+
         }
 
         void DlmsMeter::set_active_energy_sensors(sensor::Sensor *active_energy_plus, sensor::Sensor *active_energy_minus)
@@ -429,6 +510,11 @@ namespace esphome
         void DlmsMeter::set_timestamp_sensor(text_sensor::TextSensor *timestamp)
         {
             this->timestamp = timestamp;
+        }
+
+        void DlmsMeter::set_meternumber_sensor(text_sensor::TextSensor *meternumber)
+        {
+            this->meternumber = meternumber;
         }
 
         void DlmsMeter::enable_mqtt(mqtt::MQTTClientComponent *mqtt_client, const char *topic)

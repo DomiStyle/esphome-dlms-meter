@@ -47,7 +47,6 @@ namespace esphome
 
                 uint16_t payloadLength;
                 //memcpy(&payloadLength, &receiveBuffer[20], 2); // Copy payload length
-                // TODO: TEST!!!!!
                 memcpy(&payloadLength, &receiveBuffer[18], 2); // Copy payload length
                 //payloadLength = swap_uint16(payloadLength) - 5;
                 payloadLength = 243;

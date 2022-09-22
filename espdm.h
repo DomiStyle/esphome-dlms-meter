@@ -26,16 +26,14 @@ namespace esphome
 
                 void enable_mqtt(mqtt::MQTTClientComponent *mqtt_client, const char *topic);
 
-                void set_key(byte key[], size_t keyLength);
+                void set_key(uint8_t key[], size_t keyLength);
 
             private:
-                int receiveBufferIndex = 0; // Current position of the receive buffer
-                const static int receiveBufferSize = 1024; // Size of the receive buffer
-                byte receiveBuffer[receiveBufferSize]; // Stores the packet currently being received
+                std::vector<uint8_t> receiveBuffer; // Stores the packet currently being received
                 unsigned long lastRead = 0; // Timestamp when data was last read
                 int readTimeout = 100; // Time to wait after last byte before considering data complete
 
-                byte key[16]; // Stores the decryption key
+                uint8_t key[16]; // Stores the decryption key
                 size_t keyLength; // Stores the decryption key length (usually 16 bytes)
 
                 const char *topic; // Stores the MQTT topic
@@ -65,7 +63,7 @@ namespace esphome
 
                 uint16_t swap_uint16(uint16_t val);
                 uint32_t swap_uint32(uint32_t val);
-                void log_packet(byte array[], size_t length);
+                void log_packet(std::vector<uint8_t> data);
                 void abort();
         };
     }

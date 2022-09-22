@@ -2,14 +2,20 @@
  * Data structure
  */
 
-static const int DLMS_HEADER1_OFFSET = 0; // Start of first DLMS header
-static const int DLMS_HEADER1_LENGTH = 27;
+static const int DLMS_HEADER_LENGTH = 16; // Length of the header (total message length <= 127)
+static const int DLMS_HEADER_EXT_OFFSET = 2; // Length to offset when header is extended length (total message length > 127)
 
-static const int DLMS_HEADER2_OFFSET = 256; // Start of second DLMS header
-static const int DLMS_HEADER2_LENGTH = 9;
+static const int DLMS_CIPHER_OFFSET = 0; // Offset at which used cipher suite is stored
+static const int DLMS_SYST_OFFSET = 1; // Offset at which length of system title is stored
 
-static const int DLMS_SYST_OFFSET = 11;
-static const int DLMS_SYST_LENGTH = 8;
+static const int DLMS_LENGTH_OFFSET = 10; // Offset at which message length is stored
+static const int DLMS_LENGTH_CORRECTION = 5; // Part of the header is included in the DLMS length field and needs to be removed
 
-static const int DLMS_IC_OFFSET = 23;
-static const int DLMS_IC_LENGTH = 4;
+// Bytes after length may be shifted depending on length field
+
+static const int DLMS_SECBYTE_OFFSET = 11; // Offset of the security byte
+
+static const int DLMS_FRAMECOUNTER_OFFSET = 12; // Offset of the frame counter
+static const int DLMS_FRAMECOUNTER_LENGTH = 4; // Length of the frame counter (always 4)
+
+static const int DLMS_PAYLOAD_OFFSET = 16; // Offset at which the encrypted payload begins

@@ -1,4 +1,5 @@
 #include "espdm.h"
+#include "espdm_mbus.h"
 #include "espdm_dlms.h"
 #include "espdm_obis.h"
 
@@ -19,88 +20,150 @@ namespace esphome
 
             while(available()) // Read while data is available
             {
-                if(receiveBufferIndex >= receiveBufferSize)
-                {
-                    ESP_LOGE(TAG, "Buffer overflow");
-                    receiveBufferIndex = 0;
-                }
+                uint8_t c;
+                this->read_byte(&c);
+                this->receiveBuffer.push_back(c);
 
-                receiveBuffer[receiveBufferIndex] = read();
-                receiveBufferIndex++;
-
-                lastRead = currentTime;
+                this->lastRead = currentTime;
             }
 
-            if(receiveBufferIndex > 0 && currentTime - lastRead > readTimeout)
+            if(!this->receiveBuffer.empty() && currentTime - this->lastRead > this->readTimeout)
             {
-                if(receiveBufferIndex < 256)
+                log_packet(this->receiveBuffer);
+
+                // Verify and parse M-Bus frames
+
+                ESP_LOGV(TAG, "Parsing M-Bus frames");
+
+                uint16_t frameOffset = 0; // Offset is used if the M-Bus message is split into multiple frames
+                std::vector<uint8_t> mbusPayload; // Contains the data of the payload
+
+                while(true)
                 {
-                    ESP_LOGE(TAG, "Received packet with invalid size");
+                    ESP_LOGV(TAG, "MBUS: Parsing frame");
+
+                    // Check start bytes
+                    if(this->receiveBuffer[frameOffset + MBUS_START1_OFFSET] != 0x68 || this->receiveBuffer[frameOffset + MBUS_START2_OFFSET] != 0x68)
+                    {
+                        ESP_LOGE(TAG, "MBUS: Start bytes do not match");
+                        return abort();
+                    }
+
+                    // Both length bytes must be identical
+                    if(this->receiveBuffer[frameOffset + MBUS_LENGTH1_OFFSET] != this->receiveBuffer[frameOffset + MBUS_LENGTH2_OFFSET])
+                    {
+                        ESP_LOGE(TAG, "MBUS: Length bytes do not match");
+                        return abort();
+                    }
+
+                    uint8_t frameLength = this->receiveBuffer[frameOffset + MBUS_LENGTH1_OFFSET]; // Get length of this frame
+
+                    // Check if received data is enough for the given frame length
+                    if(this->receiveBuffer.size() - frameOffset < frameLength + 3)
+                    {
+                        ESP_LOGE(TAG, "MBUS: Frame too big for received data");
+                        return abort();
+                    }
+
+                    if(this->receiveBuffer[frameOffset + frameLength + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH - 1] != 0x16)
+                    {
+                        ESP_LOGE(TAG, "MBUS: Invalid stop byte");
+                        return abort();
+                    }
+
+                    mbusPayload.insert(mbusPayload.end(), &this->receiveBuffer[frameOffset + MBUS_FULL_HEADER_LENGTH], &this->receiveBuffer[frameOffset + MBUS_HEADER_INTRO_LENGTH + frameLength]);
+
+                    frameOffset += MBUS_HEADER_INTRO_LENGTH + frameLength + MBUS_FOOTER_LENGTH;
+
+                    if(frameOffset >= this->receiveBuffer.size()) // No more data to read, exit loop
+                    {
+                        break;
+                    }
+                }
+
+                // Verify and parse DLMS header
+
+                ESP_LOGV(TAG, "Parsing DLMS header");
+
+                if(mbusPayload.size() < 20) // If the payload is too short we need to abort
+                {
+                    ESP_LOGE(TAG, "DLMS: Payload too short");
                     return abort();
                 }
 
-                ESP_LOGD(TAG, "Handling packet");
-                log_packet(receiveBuffer, receiveBufferIndex);
-
-                // Decrypting
-
-                uint16_t payloadLength;
-                memcpy(&payloadLength, &receiveBuffer[20], 2); // Copy payload length
-                payloadLength = swap_uint16(payloadLength) - 5;
-
-                if(receiveBufferIndex <= payloadLength)
+                if(mbusPayload[DLMS_CIPHER_OFFSET] != 0xDB) // Only general-glo-ciphering is supported (0xDB)
                 {
-                    ESP_LOGE(TAG, "Payload length is too big for received data");
+                    ESP_LOGE(TAG, "DLMS: Unsupported cipher");
                     return abort();
                 }
 
-        /*
-                uint16_t payloadLengthPacket1;
-                memcpy(&payloadLengthPacket1, &receiveBuffer[9], 2); // Copy payload length of first telegram
+                uint8_t systitleLength = mbusPayload[DLMS_SYST_OFFSET];
 
-                payloadLengthPacket1 = swap_uint16(payloadLengthPacket1);
-
-                if(payloadLengthPacket1 >= payloadLength)
+                if(systitleLength != 0x08) // Only system titles with length of 8 are supported
                 {
-                    ESP_LOGE(TAG, "Payload length 1 is too big");
-                    return abort();
-                }
-        */
-                uint16_t payloadLength1 = 227; // TODO: Read payload length 1 from data
-
-                uint16_t payloadLength2 = payloadLength - payloadLength1;
-
-                if(payloadLength2 >= receiveBufferIndex - DLMS_HEADER2_OFFSET - DLMS_HEADER2_LENGTH)
-                {
-                    ESP_LOGE(TAG, "Payload length 2 is too big");
+                    ESP_LOGE(TAG, "DLMS: Unsupported system title length");
                     return abort();
                 }
 
-                byte iv[12]; // Reserve space for the IV, always 12 bytes
+                uint16_t messageLength = mbusPayload[DLMS_LENGTH_OFFSET];
+                int headerOffset = 0;
 
-                memcpy(&iv[0], &receiveBuffer[DLMS_SYST_OFFSET], DLMS_SYST_LENGTH); // Copy system title to IV
-                memcpy(&iv[8], &receiveBuffer[DLMS_IC_OFFSET], DLMS_IC_LENGTH); // Copy invocation counter to IV
+                if(messageLength == 0x82)
+                {
+                    ESP_LOGV(TAG, "DLMS: Message length > 127");
 
-                byte ciphertext[payloadLength];
-                memcpy(&ciphertext[0], &receiveBuffer[DLMS_HEADER1_OFFSET + DLMS_HEADER1_LENGTH], payloadLength1);
-                memcpy(&ciphertext[payloadLength1], &receiveBuffer[DLMS_HEADER2_OFFSET + DLMS_HEADER2_LENGTH], payloadLength2);
+                    memcpy(&messageLength, &mbusPayload[DLMS_LENGTH_OFFSET + 1], 2);
+                    messageLength = swap_uint16(messageLength);
 
-                byte plaintext[payloadLength];
+                    headerOffset = DLMS_HEADER_EXT_OFFSET; // Header is now 2 bytes longer due to length > 127
+                }
+                else
+                {
+                    ESP_LOGV(TAG, "DLMS: Message length <= 127");
+                }
 
-                mbedtls_gcm_init(&aes);
-                mbedtls_gcm_setkey(&aes, MBEDTLS_CIPHER_ID_AES , key, keyLength * 8);
+                messageLength -= DLMS_LENGTH_CORRECTION; // Correct message length due to part of header being included in length
 
-                mbedtls_gcm_auth_decrypt(&aes, payloadLength, iv, sizeof(iv), NULL, 0, NULL, 0, ciphertext, plaintext);
+                if(mbusPayload.size() - DLMS_HEADER_LENGTH - headerOffset != messageLength)
+                {
+                    ESP_LOGE(TAG, "DLMS: Message has invalid length");
+                    return abort();
+                }
 
-                mbedtls_gcm_free(&aes);
+                if(mbusPayload[headerOffset + DLMS_SECBYTE_OFFSET] != 0x21) // Only certain security suite is supported (0x21)
+                {
+                    ESP_LOGE(TAG, "DLMS: Unsupported security control byte");
+                    return abort();
+                }
+
+                // Decryption
+
+                ESP_LOGV(TAG, "Decrypting payload");
+
+                uint8_t iv[12]; // Reserve space for the IV, always 12 bytes
+                // Copy system title to IV (System title is before length; no header offset needed!)
+                // Add 1 to the offset in order to skip the system title length byte
+                memcpy(&iv[0], &mbusPayload[DLMS_SYST_OFFSET + 1], systitleLength);
+                memcpy(&iv[8], &mbusPayload[headerOffset + DLMS_FRAMECOUNTER_OFFSET], DLMS_FRAMECOUNTER_LENGTH); // Copy frame counter to IV
+
+                uint8_t plaintext[messageLength];
+
+                mbedtls_gcm_init(&this->aes);
+                mbedtls_gcm_setkey(&this->aes, MBEDTLS_CIPHER_ID_AES, this->key, this->keyLength * 8);
+
+                mbedtls_gcm_auth_decrypt(&this->aes, messageLength, iv, sizeof(iv), NULL, 0, NULL, 0, &mbusPayload[headerOffset + DLMS_PAYLOAD_OFFSET], plaintext);
+
+                mbedtls_gcm_free(&this->aes);
 
                 if(plaintext[0] != 0x0F || plaintext[5] != 0x0C)
                 {
-                    ESP_LOGE(TAG, "Packet was decrypted but data is invalid");
+                    ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
                     return abort();
                 }
 
                 // Decoding
+
+                ESP_LOGV(TAG, "Decoding payload");
 
                 int currentPosition = DECODER_START_OFFSET;
 
@@ -108,27 +171,27 @@ namespace esphome
                 {
                     if(plaintext[currentPosition + OBIS_TYPE_OFFSET] != DataType::OctetString)
                     {
-                        ESP_LOGE(TAG, "Unsupported OBIS header type");
+                        ESP_LOGE(TAG, "OBIS: Unsupported OBIS header type");
                         return abort();
                     }
 
-                    byte obisCodeLength = plaintext[currentPosition + OBIS_LENGTH_OFFSET];
+                    uint8_t obisCodeLength = plaintext[currentPosition + OBIS_LENGTH_OFFSET];
 
                     if(obisCodeLength != 0x06)
                     {
-                        ESP_LOGE(TAG, "Unsupported OBIS header length");
+                        ESP_LOGE(TAG, "OBIS: Unsupported OBIS header length");
                         return abort();
                     }
 
-                    byte obisCode[obisCodeLength];
+                    uint8_t obisCode[obisCodeLength];
                     memcpy(&obisCode[0], &plaintext[currentPosition + OBIS_CODE_OFFSET], obisCodeLength); // Copy OBIS code to array
 
                     currentPosition += obisCodeLength + 2; // Advance past code, position and type
 
-                    byte dataType = plaintext[currentPosition];
+                    uint8_t dataType = plaintext[currentPosition];
                     currentPosition++; // Advance past data type
 
-                    byte dataLength = 0x00;
+                    uint8_t dataLength = 0x00;
 
                     CodeType codeType = CodeType::Unknown;
 
@@ -189,7 +252,7 @@ namespace esphome
                         }
                         else
                         {
-                            ESP_LOGW(TAG, "Unsupported OBIS code");
+                            ESP_LOGW(TAG, "OBIS: Unsupported OBIS code");
                         }
                     }
                     else if(obisCode[OBIS_A] == Medium::Abstract)
@@ -208,12 +271,12 @@ namespace esphome
                         }
                         else
                         {
-                            ESP_LOGW(TAG, "Unsupported OBIS code");
+                            ESP_LOGW(TAG, "OBIS: Unsupported OBIS code");
                         }
                     }
                     else
                     {
-                        ESP_LOGE(TAG, "Unsupported OBIS medium");
+                        ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium");
                         return abort();
                     }
 
@@ -221,7 +284,6 @@ namespace esphome
                     uint16_t uint16Value;
                     uint32_t uint32Value;
                     float floatValue;
-
 
                     switch(dataType)
                     {
@@ -310,7 +372,7 @@ namespace esphome
 
                         break;
                         default:
-                            ESP_LOGE(TAG, "Unsupported OBIS data type");
+                            ESP_LOGE(TAG, "OBIS: Unsupported OBIS data type");
                             return abort();
                         break;
                     }
@@ -322,15 +384,15 @@ namespace esphome
                     if(plaintext[currentPosition] == 0x0F) // There is still additional data for this type, skip it
                         currentPosition += 6; // Skip additional data and additional break; this will jump out of bounds on last frame
                 }
-                while (currentPosition <= payloadLength); // Loop until arrived at end
+                while (currentPosition <= messageLength); // Loop until arrived at end
 
-                receiveBufferIndex = 0;
+                this->receiveBuffer.clear(); // Reset buffer
 
                 ESP_LOGI(TAG, "Received valid data");
 
                 if(this->mqtt_client != NULL)
                 {
-                    this->mqtt_client->publish_json(topic, [=](JsonObject root)
+                    this->mqtt_client->publish_json(this->topic, [=](JsonObject root)
                     {
                         if(this->voltage_l1 != NULL)
                         {
@@ -375,7 +437,7 @@ namespace esphome
 
         void DlmsMeter::abort()
         {
-            receiveBufferIndex = 0;
+            this->receiveBuffer.clear();
         }
 
         uint16_t DlmsMeter::swap_uint16(uint16_t val)
@@ -389,7 +451,7 @@ namespace esphome
             return (val << 16) | (val >> 16);
         }
 
-        void DlmsMeter::set_key(byte key[], size_t keyLength)
+        void DlmsMeter::set_key(uint8_t key[], size_t keyLength)
         {
             memcpy(&this->key[0], &key[0], keyLength);
             this->keyLength = keyLength;
@@ -437,22 +499,9 @@ namespace esphome
             this->topic = topic;
         }
 
-        void DlmsMeter::log_packet(byte array[], size_t length)
+        void DlmsMeter::log_packet(std::vector<uint8_t> data)
         {
-            char buffer[(length*3)];
-
-            for (unsigned int i = 0; i < length; i++)
-            {
-                byte nib1 = (array[i] >> 4) & 0x0F;
-                byte nib2 = (array[i] >> 0) & 0x0F;
-                buffer[i*3] = nib1  < 0xA ? '0' + nib1  : 'A' + nib1  - 0xA;
-                buffer[i*3+1] = nib2  < 0xA ? '0' + nib2  : 'A' + nib2  - 0xA;
-                buffer[i*3+2] = ' ';
-            }
-
-            buffer[(length*3)-1] = '\0';
-
-            ESP_LOGV(TAG, buffer);
+            ESP_LOGV(TAG, format_hex_pretty(data).c_str());
         }
     }
 }

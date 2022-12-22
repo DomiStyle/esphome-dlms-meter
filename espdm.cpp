@@ -25,6 +25,8 @@ namespace esphome
                 this->receiveBuffer.push_back(c);
 
                 this->lastRead = currentTime;
+                //fix for ESPHOME 2022.12 -> added 10ms delay
+                delay(10);
             }
 
             if(!this->receiveBuffer.empty() && currentTime - this->lastRead > this->readTimeout)

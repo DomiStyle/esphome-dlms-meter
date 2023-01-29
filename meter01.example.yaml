@@ -142,19 +142,19 @@ custom_component:
       auto dlms_meter = new esphome::espdm::DlmsMeter(id(mbus));
 
       uint8_t key[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-      dlms_meter->set_key(key, 16); # Pass your decryption key and key length here
+      dlms_meter->set_key(key, 16); // Pass your decryption key and key length here
 
-      dlms_meter->set_voltage_sensors(id(meter01_voltage_l1), id(meter01_voltage_l2), id(meter01_voltage_l3)); # Set sensors to use for voltage (optional)
+      dlms_meter->set_voltage_sensors(id(meter01_voltage_l1), id(meter01_voltage_l2), id(meter01_voltage_l3)); // Set sensors to use for voltage (optional)
 
-      dlms_meter->set_current_sensors(id(meter01_current_l1), id(meter01_current_l2), id(meter01_current_l3)); # Set sensors to use for current (optional)
+      dlms_meter->set_current_sensors(id(meter01_current_l1), id(meter01_current_l2), id(meter01_current_l3)); // Set sensors to use for current (optional)
 
-      dlms_meter->set_active_power_sensors(id(meter01_active_power_plus), id(meter01_active_power_minus)); # Set sensors to use for active power (optional)
+      dlms_meter->set_active_power_sensors(id(meter01_active_power_plus), id(meter01_active_power_minus)); // Set sensors to use for active power (optional)
 
-      dlms_meter->set_active_energy_sensors(id(meter01_active_energy_plus), id(meter01_active_energy_minus)); # Set sensors to use for active energy (optional)
-      dlms_meter->set_reactive_energy_sensors(id(meter01_reactive_energy_plus), id(meter01_reactive_energy_minus)); # Set sensors to use for reactive energy (optional)
+      dlms_meter->set_active_energy_sensors(id(meter01_active_energy_plus), id(meter01_active_energy_minus)); // Set sensors to use for active energy (optional)
+      dlms_meter->set_reactive_energy_sensors(id(meter01_reactive_energy_plus), id(meter01_reactive_energy_minus)); // Set sensors to use for reactive energy (optional)
 
-      dlms_meter->set_timestamp_sensor(id(meter01_timestamp)); # Set sensor to use for timestamp (optional)
+      dlms_meter->set_timestamp_sensor(id(meter01_timestamp)); // Set sensor to use for timestamp (optional)
 
-      dlms_meter->enable_mqtt(id(mqtt_broker), "meter01/data"); # Enable grouped together MQTT report, useful to get exact time with each data for storing results in InfluxDB
+      dlms_meter->enable_mqtt(id(mqtt_broker), "meter01/data"); // Enable grouped together MQTT report, useful to get exact time with each data for storing results in InfluxDB
 
       return {dlms_meter};

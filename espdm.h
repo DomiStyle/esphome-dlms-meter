@@ -23,10 +23,11 @@ namespace esphome
                 void set_active_energy_sensors(sensor::Sensor *active_energy_plus, sensor::Sensor *active_energy_minus);
                 void set_reactive_energy_sensors(sensor::Sensor *reactive_energy_plus, sensor::Sensor *reactive_energy_minus);
                 void set_timestamp_sensor(text_sensor::TextSensor *timestamp);
-
-                void enable_mqtt(mqtt::MQTTClientComponent *mqtt_client, const char *topic);
-
                 void set_key(uint8_t key[], size_t keyLength);
+
+#ifdef USE_MQTT
+                void enable_mqtt(mqtt::MQTTClientComponent *mqtt_client, const char *topic);
+#endif
 
             private:
                 std::vector<uint8_t> receiveBuffer; // Stores the packet currently being received
@@ -59,12 +60,14 @@ namespace esphome
 
                 text_sensor::TextSensor *timestamp = NULL; // Text sensor for the timestamp value
 
-                mqtt::MQTTClientComponent *mqtt_client = NULL;
 
                 uint16_t swap_uint16(uint16_t val);
                 uint32_t swap_uint32(uint32_t val);
                 void log_packet(std::vector<uint8_t> data);
                 void abort();
+#ifdef USE_MQTT
+                mqtt::MQTTClientComponent *mqtt_client = NULL;
+#endif
         };
     }
 }

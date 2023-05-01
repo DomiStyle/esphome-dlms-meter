@@ -154,7 +154,7 @@ custom_component:
       dlms_meter->set_reactive_energy_sensors(id(meter01_reactive_energy_plus), id(meter01_reactive_energy_minus)); // Set sensors to use for reactive energy (optional)
 
       dlms_meter->set_timestamp_sensor(id(meter01_timestamp)); // Set sensor to use for timestamp (optional)
-#ifdef USE_MQTT
+      #ifdef USE_MQTT
       dlms_meter->enable_mqtt(id(mqtt_broker), "meter01/data"); // Enable grouped together MQTT report, useful to get exact time with each data for storing results in InfluxDB
-#endif
+      #endif
       return {dlms_meter};

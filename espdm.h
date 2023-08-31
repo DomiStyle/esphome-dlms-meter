@@ -1,5 +1,7 @@
 #include "esphome.h"
+#if defined(ESP32)
 #include "mbedtls/gcm.h"
+#endif
 
 static const char* ESPDM_VERSION = "0.9.0";
 static const char* TAG = "espdm";
@@ -38,7 +40,9 @@ namespace esphome
 
                 const char *topic; // Stores the MQTT topic
 
+#if defined(ESP32)
                 mbedtls_gcm_context aes; // AES context used for decryption
+#endif
 
                 sensor::Sensor *voltage_l1 = NULL; // Voltage L1
                 sensor::Sensor *voltage_l2 = NULL; // Voltage L2

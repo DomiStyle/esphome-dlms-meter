@@ -2,6 +2,9 @@
 #include "espdm_mbus.h"
 #include "espdm_dlms.h"
 #include "espdm_obis.h"
+#if defined(ESP8266)
+#include <bearssl/bearssl.h>
+#endif
 
 namespace esphome
 {
@@ -150,12 +153,25 @@ namespace esphome
 
                 uint8_t plaintext[messageLength];
 
+#if defined(ESP8266)
+                memcpy(plaintext, &mbusPayload[headerOffset + DLMS_PAYLOAD_OFFSET], messageLength);
+                br_gcm_context gcmCtx;
+                br_aes_ct_ctr_keys bc;
+                br_aes_ct_ctr_init(&bc, this->key, this->keyLength);
+                br_gcm_init(&gcmCtx, &bc.vtable, br_ghash_ctmul32);
+                br_gcm_reset(&gcmCtx, iv, sizeof(iv));
+                br_gcm_flip(&gcmCtx);
+                br_gcm_run(&gcmCtx, 0, plaintext, messageLength);
+#elif defined(ESP32)
                 mbedtls_gcm_init(&this->aes);
                 mbedtls_gcm_setkey(&this->aes, MBEDTLS_CIPHER_ID_AES, this->key, this->keyLength * 8);
 
                 mbedtls_gcm_auth_decrypt(&this->aes, messageLength, iv, sizeof(iv), NULL, 0, NULL, 0, &mbusPayload[headerOffset + DLMS_PAYLOAD_OFFSET], plaintext);
 
                 mbedtls_gcm_free(&this->aes);
+#else
+  #error "Invalid Platform"
+#endif
 
                 if(plaintext[0] != 0x0F || plaintext[5] != 0x0C)
                 {

@@ -408,6 +408,7 @@ namespace esphome
 
                 ESP_LOGI(TAG, "Received valid data");
 
+#ifdef USE_MQTT
                 if(this->mqtt_client != NULL)
                 {
                     this->mqtt_client->publish_json(this->topic, [=](JsonObject root)
@@ -450,6 +451,7 @@ namespace esphome
                         }
                     });
                 }
+#endif // USE_MQTT
             }
         }
 
@@ -511,11 +513,13 @@ namespace esphome
             this->timestamp = timestamp;
         }
 
+#ifdef USE_MQTT
         void DlmsMeter::enable_mqtt(mqtt::MQTTClientComponent *mqtt_client, const char *topic)
         {
             this->mqtt_client = mqtt_client;
             this->topic = topic;
         }
+#endif // USE_MQTT
 
         void DlmsMeter::log_packet(std::vector<uint8_t> data)
         {
